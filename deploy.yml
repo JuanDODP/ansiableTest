@@ -1,0 +1,78 @@
+---
+- name: Configurar Servidor de Producción para Farmacia API
+  hosts: webservers
+  become: yes # Ejecuta las tareas con privilegios sudo
+  vars_files:
+    - vars.yml
+
+  tasks:
+    - name: 1. Actualizar el caché de apt y paquetes del sistema
+      apt:
+        update_cache: yes
+        upgrade: dist
+        cache_valid_time: 3600
+
+    - name: 2. Instalar herramientas base necesarias
+      apt:
+        name:
+          - curl
+          - git
+          - nginx
+          - certbot
+          - python3-certbot-nginx
+        state: present
+
+    - name: 3. Configurar repositorio oficial de Node.js
+      shell: "curl -fsSL https://deb.nodesource.com/setup_{{ node_version }} | bash -"
+      args:
+        creates: /etc/apt/sources.list.d/nodesource.list
+
+    - name: 4. Instalar Node.js
+      apt:
+        name: nodejs
+        state: present
+
+    - name: 5. Instalar PM2 de forma global
+      community.general.npm:
+        name: pm2
+        global: yes
+        state: present
+
+    - name: 6. Asegurar existencia de la carpeta de despliegue
+      file:
+        path: "{{ app_directory }}"
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: 7. Configurar bloque de servidor en Nginx (Proxy Inverso)
+      blockinfile:
+        path: /etc/nginx/sites-available/default
+        marker: "# {mark} ANSIBLE MANAGED BLOCK"
+        block: |
+          server {
+              listen 80;
+              server_name {{ domain_name }};
+
+              location / {
+                  proxy_pass http://127.0.0.1:3000;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+                  proxy_set_header X-Forwarded-Proto $scheme;
+              }
+          }
+      notify: Reiniciar Nginx
+
+    - name: 8. Enlazar configuración de Nginx
+      file:
+        src: /etc/nginx/sites-available/default
+        dest: /etc/nginx/sites-enabled/default
+        state: link
+
+  handlers:
+    - name: Reiniciar Nginx
+      service:
+        name: nginx
+        state: restarted
