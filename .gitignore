@@ -1,0 +1,19 @@
+# Reintentos de Ansible
+*.retry
+
+# Archivos de log
+*.log
+
+# Archivos de inventario o variables con datos sensibles (opcional, coméntalos si son de prueba y quieres subirlos)
+# aab/inventory.ini
+# aab/vars.yml
+
+# Archivos temporales de SO
+.DS_Store
+Thumbs.db
+
+# Directorios de roles descargados (si usas ansible-galaxy)
+roles/
+
+# Variables de entorno (si llegaras a usar)
+.env
