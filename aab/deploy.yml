@@ -1,0 +1,76 @@
+---
+- name: Configurar Servidor de Producción para Farmacia API
+  hosts: webservers
+  become: yes
+  vars: # <-- Cambiamos 'vars_files' por 'vars'
+    app_directory: "/var/www"
+    node_version: "22.x"
+    pm2_process_name: "farmaciadedios-api"
+    domain_name: "farmasys.duckdns.org"
+
+  tasks:
+    - name: 1. Actualizar el caché de paquetes (Apt)
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: 2. Instalar herramientas de sistema y dependencias
+      ansible.builtin.apt:
+        name:
+          - curl
+          - git
+          - nginx
+          - certbot
+          - python3-certbot-nginx
+        state: present
+
+    - name: 3. Agregar repositorio oficial para Node.js de forma dinámica
+      ansible.builtin.deb822_repository:
+        name: nodesource
+        types: deb
+        uris: "https://deb.nodesource.com/node_{{ node_version }}"
+        suites: nodistro
+        components: main
+        signed_by: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+        state: present
+
+    - name: 4. Instalar Node.js de forma nativa
+      ansible.builtin.apt:
+        name: nodejs
+        state: present
+        update_cache: yes
+
+    - name: 5. Instalar PM2 de forma global usando npm
+      community.general.npm:
+        name: pm2
+        global: yes
+        state: present
+
+    - name: 6. Crear estructura de directorios con dueños correctos
+      ansible.builtin.file:
+        path: "{{ app_directory }}"
+        state: directory
+        owner: ubuntu
+        group: www-data
+        mode: '0775'
+
+    - name: 7. Desplegar configuración de Nginx usando la Plantilla J2
+      ansible.builtin.template:
+        src: nginx.conf.j2
+        dest: /etc/nginx/sites-available/default
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Reiniciar Nginx
+
+    - name: 8. Asegurar enlace simbólico para activar el sitio
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/default
+        dest: /etc/nginx/sites-enabled/default
+        state: link
+
+  handlers:
+    - name: Reiniciar Nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted

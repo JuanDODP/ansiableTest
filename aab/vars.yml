@@ -1,0 +1,5 @@
+---
+app_directory: "/var/www"
+node_version: "22.x"
+pm2_process_name: "farmaciadedios-api"
+domain_name: "farmasys.duckdns.org"
